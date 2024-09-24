@@ -1,5 +1,16 @@
 This is a script that allows you to read your Nostr feed and broadcast notes to the Nostr protocol.
 
+### Screenshots
+
+![Main Menu](https://m.primal.net/LAdz.png)  
+
+![View Feed](https://m.primal.net/LAeB.png )  
+
+![Write Note](https://m.primal.net/LAeC.png )  
+
+![Broadcast](https://m.primal.net/LAeD.png)
+
+
 ### Setup
 Create a .env, in your root directory, that has your favorite nsec and npub. (You can also use this random nsec: `nsec1slgfeunlur9z8jj064jzed0cveee9mzxtp3lcxh454n9u0504jgq7r5fc3`)
 

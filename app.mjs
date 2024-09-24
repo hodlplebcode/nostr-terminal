@@ -244,12 +244,17 @@ async function showNextNote(eventArray, npubArray) {
 }
 
 async function writeNote(eventId) {
+  console.clear();
+  console.log("##############################################");
+  console.log("###              WRITE A NOTE              ###");
+  console.log("##############################################");
+
   let n;
   if (eventId !== undefined) {
     // console.log(`Quoting Event: ${eventId}`)
     n = nip19.noteEncode(eventId);
   }
-  let eventContent = await rl.question('Enter your Note Text: ');
+  let eventContent = await rl.question('\nEnter your Note Text: ');
   eventContent = eventContent.replace(/\\n/g, '\n')
   if (n !== undefined) {
     eventContent += ` nostr:${n}`;
@@ -272,7 +277,7 @@ async function writeNote(eventId) {
     console.log(`Please try again.`)
     writeNote(eventId);
   } else {
-    console.log(`####################################`);
+    console.log(`\n####################################`);
     console.log(`# Your event is ready to broadcast #`);
     console.log(`####################################`);
     broadcast(event);
@@ -280,7 +285,7 @@ async function writeNote(eventId) {
 }
 
 async function broadcast(event) {
-  const eventAction = await rl.question('[B]roadcast, [V]iew JSON, [M]ain Menu: ');
+  const eventAction = await rl.question('\n[B]roadcast, [V]iew JSON, [M]ain Menu: ');
 
   switch(eventAction.charAt(0).toLowerCase()) {
     case "b":
