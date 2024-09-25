@@ -2,16 +2,16 @@ This is a script that allows you to read your Nostr feed and broadcast notes to 
 
 ### Screenshots
 
-npm start
+npm start  
 ![Main Menu](https://m.primal.net/LAdz.png)  
 
-View Your Feed
+View Your Feed  
 ![View Feed](https://m.primal.net/LAeB.png )  
 
-Write a Note
+Write a Note  
 ![Write Note](https://m.primal.net/LAeC.png )  
 
-Send it 🚀
+Send it 🚀  
 ![Broadcast](https://m.primal.net/LAeD.png)
 
 
