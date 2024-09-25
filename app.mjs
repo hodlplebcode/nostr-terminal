@@ -20,7 +20,7 @@ const NPUB = bytesToHex(bech32Decoder('npub', process.env.NPUB));
 
 useWebSocketImplementation(WebSocket);
 const pool = new SimplePool()
-let relays = ['wss://relay.satoshidnc.com/', 'wss://nos.lol', 'wss://relay.primal.net']
+let relays = ['wss://relay.satoshidnc.com/', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://nostr.wine/', 'wss://nostr.lorentz.is/', 'wss://eden.nostr.land/']
 
 start();
 
@@ -78,7 +78,10 @@ async function viewFeed() {
   // const relay = await Relay.connect('wss://nos.lol/')
   let eventArray = [];
   let npubArray = [];
-  let lineEnd = '>';
+  let progressBar = '';
+  let x = 0;
+  let y = 1;
+  const blankLine = new Array(10).fill("░ ");
 
   let sub = pool.subscribeMany([...relays],[
   // const sub = relay.subscribe([
@@ -93,7 +96,18 @@ async function viewFeed() {
       }
     ], {
     onevent(event) {
-      process.stdout.write('\rFetching Stream '+'='.repeat((eventArray.length + npubArray.length)/10))
+
+      if ((eventArray.length + npubArray.length) % 10 === 0) {
+        let newLine = Array.from(blankLine);
+        newLine[x] = "█ ";
+        y = x>=(blankLine.length-1) ? -1 : y;
+        y = x<=0 ? 1 : y;
+        x+=y;
+        progressBar = newLine.join('');
+      }
+
+      // process.stdout.write('\r#  Fetching Stream '+'='.repeat((eventArray.length + npubArray.length)/10))
+      process.stdout.write('\r# Fetching '+progressBar+'  #')
       if (event.kind === 0) {
         npubArray.push({ pubkey: event.pubkey, content: JSON.parse(event.content)}); // add each Meta Event to npubArray
       } else if (event.kind === 1) {
@@ -103,7 +117,7 @@ async function viewFeed() {
     oneose() {
       // TODO add sorting
       sub.close();
-
+      process.stdout.write('\r');
       eventArray = sortTimeline(eventArray);
       showNextNote(eventArray, npubArray);
     }
@@ -126,7 +140,9 @@ function sortTimeline(eventArray) {
 
 function getFollows() {
   return new Promise((resolve, reject) => {
-    console.log("Fetching Follow List ...")
+    console.log(`##################################`);
+    console.log(`#     FETCHING FOLLOWED LIST     #`);
+    console.log(`##################################`);
     let authorsArray = [];
     let eventResponse;
 
@@ -172,9 +188,9 @@ let dateFormat = {
 async function showNextNote(eventArray, npubArray) {
 
     const e = eventArray[0];
-
     // Convert Unix timestamp to milliseconds
-    let date = new Date(e.created_at * 1000);
+    // const date = e?created_at ? e.created_at : Date()
+    let date = new Date(e?.created_at * 1000);
     let formattedDate = new Intl.DateTimeFormat('en-US', dateFormat).format(date);
 
     let fg = eventArray.length % 2 === 0 ? "\x1b[30m" : "\x1b[37m";
@@ -203,13 +219,16 @@ async function showNextNote(eventArray, npubArray) {
       content = content.replace(link, replacementUrl);
     }
 
+    // TODO: Show likes, replies, etc
+
     console.log(`${bg}${fg}`); // set background & foreground colors
     console.log('='.repeat(50)); // draw a dividing line
     console.log(`\n${displayName} @ ${formattedDate}\n${content}\n`)
     console.log('='.repeat(50)); // draw a dividing line
 
     if (eventArray.length > 1) {
-      let action = await rl.question('[Enter], [Q]uote, [T]op, [M]enu, [H]elp : ');
+      let action = await rl.question('[Enter], [Q]uote, [R]eply, [T]op, [M]enu, [H]elp : ');
+      // TODO [R]eply, [D]etails, [P]revious, [L]ike
 
       switch (action.charAt(0).toLowerCase()) {
         case "m":
@@ -217,11 +236,11 @@ async function showNextNote(eventArray, npubArray) {
           menu();
           break;
         case "q":
-          writeNote(e.id);
+          writeNote(e.id, "QUOTE");
           break;
         case "r":
-          console.log(`### (Coming Soon) Reply ... ###`);
-          viewFeed();
+          console.log(`!!! (Coming Soon) Reply ... !!!\n`);
+          writeNote(e.id, "REPLY");
           break;
         case "h":
           help();
@@ -243,43 +262,69 @@ async function showNextNote(eventArray, npubArray) {
     }
 }
 
-async function writeNote(eventId) {
-  console.clear();
-  console.log("##############################################");
-  console.log("###              WRITE A NOTE              ###");
-  console.log("##############################################");
-
-  let n;
-  if (eventId !== undefined) {
-    // console.log(`Quoting Event: ${eventId}`)
-    n = nip19.noteEncode(eventId);
+async function writeNote(refEventId, action) {
+  // refEventId is the event.id of another event
+  // action can be "QUOTE" or "REPLY"
+  let eventId;
+  const allowedActions = ["QUOTE", "REPLY"];
+  if (action !== undefined && allowedActions.includes(action)) {
+    if (refEventId !== undefined && action === "QUOTE") {
+      eventId = nip19.noteEncode(refEventId); // This is a "QUOTE"
+      console.clear();
+      console.log("##############################################");
+      console.log("###               QUOTE A NOTE             ###");
+      console.log("##############################################");
+    } else if (refEventId !== undefined) {
+      eventId = refEventId; // This is a "REPLY"
+      console.clear();
+      console.log("##############################################");
+      console.log("###            REPLY TO A NOTE             ###");
+      console.log("##############################################");
+    } else {
+      console.log("!!! Missing Event ID !!!");
+      menu();
+    }
+  } else if (action !== undefined) {
+    console.log("!!! Invalid Action !!!");
+    menu();
+  } else {
+    console.clear();
+    console.log("##############################################");
+    console.log("###              WRITE A NOTE              ###");
+    console.log("##############################################");
   }
+
   let eventContent = await rl.question('\nEnter your Note Text: ');
   eventContent = eventContent.replace(/\\n/g, '\n')
-  if (n !== undefined) {
-    eventContent += ` nostr:${n}`;
+  if (eventId !== undefined && action === "QUOTE") {
+    eventContent += ` nostr:${eventId}`;
   }
 
+  let tagArray = []
   // tag for a reply ["e", eventId]
+  if (eventId !== undefined && action === "REPLY") {
+    tagArray.push(["e", eventId,"","root"]);
+  }
   // const tagArray = JSON.stringify('["e", "'+eventId+'"]'); // for reply ... ?
   // use finalizeEvent from nostr-tools to get the event.id, event.pubkey, event.sig
   const createdAt = Math.floor(Date.now() / 1000);
   const event = finalizeEvent({
     kind: 1,
     created_at: createdAt,
-    tags: [],
+    tags: tagArray,
     content: eventContent,
   }, NSEC)
   // console.log(event);
 
   if (!verifyEvent(event)) {
-    console.log(`There was a problem signing your Note.`);
-    console.log(`Please try again.`)
-    writeNote(eventId);
+    console.log(`\s !!! There was a problem signing your Note !!!`);
+    console.log(`!!! Please try again !!!\n`)
+    writeNote(refEventId);
   } else {
-    console.log(`\n####################################`);
-    console.log(`# Your event is ready to broadcast #`);
-    console.log(`####################################`);
+    console.log(` `);
+    console.log(`#######################################`);
+    console.log(`#   Your Note is ready to Broadcast   #`);
+    console.log(`#######################################`);
     broadcast(event);
   }
 }
@@ -299,6 +344,8 @@ async function broadcast(event) {
       console.log(`#################################################`)
       console.log(`#            Your Note has Broadcast            #`);
       console.log(`#################################################`)
+      let action = await rl.question('[Enter] to Continue');
+      console.clear();
       menu();
       break;
     case "v":
@@ -321,7 +368,7 @@ async function broadcast(event) {
       menu();
       break;
     default:
-      console.log(`! Invalid Option, Try Again`);
+      console.log(`\n!!! Invalid Selection, Try Again !!!\n`);
       broadcast(event);
   }
 }
@@ -329,9 +376,9 @@ async function broadcast(event) {
 async function help() {
   console.clear();
 
-  console.log(`########################`);
-  console.log(`#  NOSTR TERMINAL HELP #`);
-  console.log(`########################\n`);
+  console.log(`##################################`);
+  console.log(`#       NOSTR-TERMINAL HELP      #`);
+  console.log(`##################################\n`);
 
   console.log(`On the Main Menu:`);
   console.log(`Enter VIEW, V, or F to VIEW FEED of the npub`);
@@ -340,9 +387,10 @@ async function help() {
 
   console.log(`On the VIEW FEED screen:`);
   console.log(`The feed will show 1 note at a time`);
-  console.log(`The feed will show your 100 most recent notes`);
+  console.log(`The feed will show the 100 most recent notes`);
   console.log(`Press the ENTER button to reveal the next note`);
-  console.log(`Enter Q to go to QUOTE the current note + write your own`);
+  console.log(`Enter Q to QUOTE the current note + write your own`);
+  console.log(`Enter R to REPLY the current note`);
   console.log(`Enter T to go to the TOP of your feed + see new notes`);
   console.log(`Enter M to return to the Main Menu\n`);
 
@@ -358,6 +406,8 @@ async function help() {
   console.log(`Enter B to Broadcast your event to the network`);
   console.log(`(you will see "Your event has broadcast" + the Main Menu)`);
   console.log(`Enter M to return to the Main Menu\n`);
+
+  console.log(`Contact: npub1nu9m6k6dca28f9humvq0ad334a3czu0qrevw0pd4ml2pzaumx0mqyr3ars\n`)
 
   const action = await rl.question('Press [ENTER] to continue: ');
   console.clear();
