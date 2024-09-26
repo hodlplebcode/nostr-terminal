@@ -119,7 +119,7 @@ async function viewFeed() {
       sub.close();
       process.stdout.write('\r');
       eventArray = sortTimeline(eventArray);
-      showNextNote(eventArray, npubArray);
+      showNote(eventArray, npubArray, 0);
     }
   })
 
@@ -185,16 +185,16 @@ let dateFormat = {
     hour12: true // Use 24-hour format
 };
 
-async function showNextNote(eventArray, npubArray) {
-
-    const e = eventArray[0];
+async function showNote(eventArray, npubArray, index=0) {
+    index = index < 0 ? 0 : index;
+    const e = eventArray[index];
     // Convert Unix timestamp to milliseconds
     // const date = e?created_at ? e.created_at : Date()
     let date = new Date(e?.created_at * 1000);
     let formattedDate = new Intl.DateTimeFormat('en-US', dateFormat).format(date);
 
-    let fg = eventArray.length % 2 === 0 ? "\x1b[30m" : "\x1b[37m";
-    let bg = eventArray.length % 2 === 0 ? "\x1b[47m" : "\x1b[40m";
+    let fg = index % 2 === 0 ? "\x1b[30m" : "\x1b[37m";
+    let bg = index % 2 === 0 ? "\x1b[47m" : "\x1b[40m";
 
     let npub = npubArray.find(obj => obj.pubkey === e.pubkey);
     let displayName = 'Name Not Found'
@@ -227,7 +227,7 @@ async function showNextNote(eventArray, npubArray) {
     console.log('='.repeat(50)); // draw a dividing line
 
     if (eventArray.length > 1) {
-      let action = await rl.question('[Enter], [Q]uote, [R]eply, [T]op, [M]enu, [H]elp : ');
+      let action = await rl.question('[Enter], [Q]uote, [R]eply, [T]op, [P]revious, [M]enu, [H]elp: ');
       // TODO [R]eply, [D]etails, [P]revious, [L]ike
 
       switch (action.charAt(0).toLowerCase()) {
@@ -235,24 +235,32 @@ async function showNextNote(eventArray, npubArray) {
           console.clear();
           menu();
           break;
+        // case "d":
+        //   console.log("### Note Details ###")
+        //   // show link to Primal?
+        //   // likes, etc
+        //   break;
         case "q":
           writeNote(e.id, "QUOTE");
           break;
         case "r":
-          console.log(`!!! (Coming Soon) Reply ... !!!\n`);
           writeNote(e.id, "REPLY");
-          break;
-        case "h":
-          help();
           break;
         case "t":
           console.clear();
           console.log(`Loading Feed ...`);
           viewFeed();
           break;
+        case "p":
+          index--;
+          showNote(eventArray, npubArray, index);
+          break;
+        case "h":
+          help();
+          break;
         default:
-          eventArray.shift();
-          showNextNote(eventArray, npubArray);
+          index++;
+          showNote(eventArray, npubArray, index);
       }
     } else {
       console.log("#############################################");
@@ -345,6 +353,7 @@ async function broadcast(event) {
       console.log(`#            Your Note has Broadcast            #`);
       console.log(`#################################################`)
       let action = await rl.question('[Enter] to Continue');
+      // TODO return to feed, if that is where you came from
       console.clear();
       menu();
       break;

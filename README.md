@@ -37,4 +37,7 @@ NPUB = 'npub1s0cuk03k5ms4lrums4f3pvmnr0t9weqvuygjt653pw7rp0vgz9tszf6sy3'
 `npm i`
 
 1. Start the script  
-`npm start`
+`npm start`  
+
+---  
+Thanks to the [nostr-tools](https://github.com/nbd-wtf/nostr-tools) library for making this possible
