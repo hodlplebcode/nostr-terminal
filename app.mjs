@@ -1,14 +1,17 @@
 import 'dotenv/config'
 
-import { finalizeEvent, verifyEvent } from 'nostr-tools/pure'
-import { Relay } from 'nostr-tools/relay'
-import { SimplePool, useWebSocketImplementation } from 'nostr-tools/pool'
+import { finalizeEvent, verifyEvent } from 'nostr-tools/pure';
+import { Relay } from 'nostr-tools/relay';
+import { SimplePool, useWebSocketImplementation } from 'nostr-tools/pool';
 // import { useWebSocketImplementation } from 'nostr-tools/relay'
-import { WebSocket } from 'ws'
+import { WebSocket } from 'ws';
 
-import { bytesToHex } from '@noble/hashes/utils'
-import { bech32 } from 'bech32';
-import * as nip19 from 'nostr-tools/nip19'
+import { bytesToHex } from '@noble/hashes/utils';
+import { bech32 } from 'bech32';;
+import * as nip19 from 'nostr-tools/nip19';
+
+// import { promises as fs } from 'fs';
+// import { open } from 'open';
 
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
@@ -16,11 +19,22 @@ import { stdin as input, stdout as output } from 'node:process';
 const rl = readline.createInterface({ input, output });
 
 const NSEC = bytesToHex(bech32Decoder('nsec', process.env.NSEC));
-const NPUB = bytesToHex(bech32Decoder('npub', process.env.NPUB));
+const PUBKEY = bytesToHex(bech32Decoder('npub', process.env.NPUB));
 
 useWebSocketImplementation(WebSocket);
 const pool = new SimplePool()
 let relays = ['wss://relay.satoshidnc.com/', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://nostr.wine/', 'wss://nostr.lorentz.is/', 'wss://eden.nostr.land/']
+
+let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let dateFormat = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+    hour12: true // Use 24-hour format
+};
 
 start();
 
@@ -30,19 +44,26 @@ function start() {
   menu();
 }
 
+// ------------------ //
+//       LOGO        //
 function logo() {
   console.log(`########################`);
   console.log(`#    NOSTR TERMINAL    #`);
   console.log(`########################`);
 }
 
+// ------------------ //
+//       MENU        //
 async function menu() {
   console.log("\x1b[0m");
   console.log(`########################`);
   console.log(`###### MAIN MENU #######`);
   console.log(`########################`);
   console.log(`[V]iew [F]eed`);
+  console.log(`[P]rofile`)
   console.log(`[W]rite a Note`);
+  // TODO console.log(`[F]ollow List`);
+  // TODO console.log(`[S]earch`);
   console.log(`[Q]uit`);
   console.log(`[H]elp`);
 
@@ -52,6 +73,9 @@ async function menu() {
     case "v":
     case "f":
       viewFeed();
+      break;
+    case "p":
+      viewProfile();
       break;
     case "w":
       writeNote();
@@ -69,13 +93,12 @@ async function menu() {
   }
 }
 
+// ------------------ //
+//     VIEW FEED     //
 async function viewFeed() {
 
   let authorsArray = await getFollows();
 
-  // const pool = new SimplePool()
-  // let relays = ['wss://relay.satoshidnc.com/', 'wss://nos.lol', 'wss://relay.primal.net']
-  // const relay = await Relay.connect('wss://nos.lol/')
   let eventArray = [];
   let npubArray = [];
   let progressBar = '';
@@ -84,7 +107,6 @@ async function viewFeed() {
   const blankLine = new Array(10).fill("░ ");
 
   let sub = pool.subscribeMany([...relays],[
-  // const sub = relay.subscribe([
       {
         kinds: [0],
         authors: authorsArray
@@ -97,6 +119,7 @@ async function viewFeed() {
     ], {
     onevent(event) {
 
+      // break this out to a function
       if ((eventArray.length + npubArray.length) % 10 === 0) {
         let newLine = Array.from(blankLine);
         newLine[x] = "█ ";
@@ -106,6 +129,7 @@ async function viewFeed() {
         progressBar = newLine.join('');
       }
 
+      // TODO hide the cursor while the animation is going
       // process.stdout.write('\r#  Fetching Stream '+'='.repeat((eventArray.length + npubArray.length)/10))
       process.stdout.write('\r# Fetching '+progressBar+'  #')
       if (event.kind === 0) {
@@ -125,6 +149,8 @@ async function viewFeed() {
 
 }
 
+// ------------------ //
+//   SORT TIMELINE   //
 function sortTimeline(eventArray) {
   eventArray.sort((a, b) => {
     if (a.created_at < b.created_at) {
@@ -138,6 +164,8 @@ function sortTimeline(eventArray) {
   return eventArray;
 }
 
+// ------------------ //
+//    GET FOLLOWS    //
 function getFollows() {
   return new Promise((resolve, reject) => {
     console.log(`##################################`);
@@ -150,7 +178,7 @@ function getFollows() {
     // const sub = relay.subscribe([
         {
           kinds: [3], // kind 3 is the follower list
-          authors: [NPUB] // npub hex
+          authors: [PUBKEY] // npub hex
         },
       ], {
       onevent(event) {
@@ -173,16 +201,55 @@ function getFollows() {
 
 }
 
+async function viewProfile() {
 
-let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-let dateFormat = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: timezone,
-    hour12: true // Use 24-hour format
+  let eventArray = [];
+  let npubArray = [];
+  let progressBar = '';
+  let x = 0;
+  let y = 1;
+  const blankLine = new Array(10).fill("░ ");
+
+  let sub = pool.subscribeMany([...relays],[
+  // const sub = relay.subscribe([
+      {
+        kinds: [0],
+        authors: [PUBKEY] // npub hex
+      },
+      {
+        kinds: [1],
+        limit: 100,
+        authors: [PUBKEY]
+      }
+    ], {
+    onevent(event) {
+
+      if ((eventArray.length + npubArray.length) % 10 === 0) {
+        let newLine = Array.from(blankLine);
+        newLine[x] = "█ ";
+        y = x>=(blankLine.length-1) ? -1 : y;
+        y = x<=0 ? 1 : y;
+        x+=y;
+        progressBar = newLine.join('');
+      }
+
+      // TODO hide the cursor while the animation is going
+      // process.stdout.write('\r#  Fetching Stream '+'='.repeat((eventArray.length + npubArray.length)/10))
+      process.stdout.write('\r# Fetching '+progressBar+'  #')
+      if (event.kind === 0) {
+        npubArray.push({ pubkey: event.pubkey, content: JSON.parse(event.content)}); // add each Meta Event to npubArray
+      } else if (event.kind === 1) {
+        eventArray.push(event) // add each Note Event to eventArray
+      }
+    },
+    oneose() {
+      // TODO add sorting
+      sub.close();
+      process.stdout.write('\r');
+      eventArray = sortTimeline(eventArray);
+      showNote(eventArray, npubArray, 0);
+    }
+  })
 };
 
 async function showNote(eventArray, npubArray, index=0) {
@@ -227,38 +294,42 @@ async function showNote(eventArray, npubArray, index=0) {
     console.log('='.repeat(50)); // draw a dividing line
 
     if (eventArray.length > 1) {
-      let action = await rl.question('[Enter], [Q]uote, [R]eply, [T]op, [P]revious, [M]enu, [H]elp: ');
-      // TODO [R]eply, [D]etails, [P]revious, [L]ike
+      let action = await rl.question('[Enter], [Q]uote, [R]eply, [T]op, [P]revious, [W]eb, [M]enu, [H]elp: ');
+      // TODO [D]etails, [P]revious, [L]ike, [B]rowser
 
       switch (action.charAt(0).toLowerCase()) {
-        case "m":
-          console.clear();
-          menu();
-          break;
         // case "d":
         //   console.log("### Note Details ###")
         //   // show link to Primal?
         //   // likes, etc
         //   break;
-        case "q":
+        case "q": // quote
           writeNote(e.id, "QUOTE");
           break;
-        case "r":
+        case "r": // reply
           writeNote(e.id, "REPLY");
           break;
-        case "t":
+        case "t": // top
           console.clear();
           console.log(`Loading Feed ...`);
           viewFeed();
           break;
-        case "p":
+        case "p": // previous
           index--;
           showNote(eventArray, npubArray, index);
           break;
-        case "h":
+        case "w": // web
+          const url = 'https://primal.net/e/note' + e.id;
+          await open(url);
+          break;
+        case "m": // menu
+          console.clear();
+          menu();
+          break;
+        case "h": // help
           help();
           break;
-        default:
+        default: // next note
           index++;
           showNote(eventArray, npubArray, index);
       }
@@ -417,6 +488,8 @@ async function help() {
   console.log(`Enter M to return to the Main Menu\n`);
 
   console.log(`Contact: npub1nu9m6k6dca28f9humvq0ad334a3czu0qrevw0pd4ml2pzaumx0mqyr3ars\n`)
+
+  // TODO jump back to the previous screen? (Feed, Write, etc?)
 
   const action = await rl.question('Press [ENTER] to continue: ');
   console.clear();
